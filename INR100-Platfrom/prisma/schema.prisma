@@ -1,0 +1,926 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  phone           String?  @unique
+  password        String?
+  name            String?
+  avatar          String?
+  panNumber       String?  @unique
+  aadhaarNumber   String?  @unique
+  kycStatus       KYCStatus @default(PENDING)
+  riskProfile     RiskProfile?
+  isVerified      Boolean  @default(false)
+  level           Int      @default(1)
+  xp              Int      @default(0)
+  streak          Int      @default(0)
+  lastLoginAt     DateTime?
+  subscriptionTier SubscriptionTier @default(BASIC)
+  subscriptionExpiresAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  accounts        Account[]
+  portfolios      Portfolio[]
+  orders          Order[]
+  transactions    Transaction[]
+  kycDocuments    KYCDocument[]
+  badges          UserBadge[]
+  missions        UserMission[]
+  learnProgress   LearnProgress[]
+  socialPosts     SocialPost[]
+  comments        Comment[]
+  follows         Follow[] @relation("UserFollowing")
+  followers       Follow[] @relation("UserFollowers")
+  copiedPortfolios CopiedPortfolio[]
+  aiInsights      AIInsight[]
+  paymentMethods  PaymentMethod[]
+  wallet          Wallet?
+  subscriptions   Subscription[]
+  fees            Fee[]
+  premiumFeatures UserPremiumFeature[]
+  managedPortfolios ManagedPortfolio[]
+  affiliateLinks  AffiliateLink[]
+  affiliateClicks AffiliateClick[]
+  commissions     Commission[]
+  premiumContentPurchases PremiumContentPurchase[]
+  
+  @@map("users")
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  userId    String
+  bankName  String
+  accountNumber String
+  ifscCode  String
+  isPrimary Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("accounts")
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Float    @default(0)
+  currency  String   @default("INR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  @@map("wallets")
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  symbol      String   @unique
+  name        String
+  type        AssetType
+  category    AssetCategory?
+  description String?
+  currentPrice Float?
+  previousPrice Float?
+  change24h   Float?
+  changePercent Float?
+  marketCap   Float?
+  volume24h   Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  holdings    Holding[]
+  orders      Order[]
+  watchlists  WatchlistItem[]
+  aiInsights  AIInsight[]
+  
+  @@map("assets")
+}
+
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  description String?
+  isPublic  Boolean  @default(false)
+  totalValue Float    @default(0)
+  totalInvested Float @default(0)
+  totalReturns Float  @default(0)
+  riskLevel  Int      @default(1) // 1-5 risk scale
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings   Holding[]
+  copiedBy   CopiedPortfolio[]
+  managedBy  ManagedPortfolio[]
+  
+  @@map("portfolios")
+}
+
+model Holding {
+  id          String   @id @default(cuid())
+  portfolioId String
+  assetId     String
+  quantity    Float
+  avgBuyPrice Float
+  currentPrice Float
+  totalValue  Float
+  totalInvested Float
+  returns     Float
+  returnsPercent Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  @@unique([portfolioId, assetId])
+  @@map("holdings")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  userId    String
+  assetId   String
+  type      OrderType
+  orderType OrderSide // BUY/SELL
+  quantity  Float
+  price     Float
+  status    OrderStatus @default(PENDING)
+  totalAmount Float
+  brokerageFee Float @default(0)
+  spreadFee Float @default(0)
+  totalFee Float @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  executedAt DateTime?
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  @@map("orders")
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  walletId  String?
+  type      TransactionType
+  amount    Float
+  currency  String   @default("INR")
+  status    TransactionStatus @default(PENDING)
+  reference String?
+  description String?
+  metadata  String? // JSON
+  fee       Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet    Wallet? @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  @@map("transactions")
+}
+
+model KYCDocument {
+  id        String   @id @default(cuid())
+  userId    String
+  type      KYCDocumentType
+  documentUrl String
+  status    KYCStatus @default(PENDING)
+  verifiedAt DateTime?
+  rejectionReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("kyc_documents")
+}
+
+model Badge {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  description String
+  icon      String?
+  category  String
+  xpReward  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  userBadges UserBadge[]
+  
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model Mission {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  type        MissionType
+  targetValue Int
+  xpReward    Int
+  coinReward  Int      @default(0)
+  isActive    Boolean  @default(true)
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  userMissions UserMission[]
+  
+  @@map("missions")
+}
+
+model UserMission {
+  id          String   @id @default(cuid())
+  userId      String
+  missionId   String
+  status      MissionStatus @default(ACTIVE)
+  progress    Int      @default(0)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, missionId])
+  @@map("user_missions")
+}
+
+model LearnContent {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        LearnType
+  category    String
+  difficulty  Int      @default(1) // 1-5
+  duration    Int      // in minutes
+  xpReward    Int      @default(10)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  progress    LearnProgress[]
+  
+  @@map("learn_content")
+}
+
+model LearnProgress {
+  id            String   @id @default(cuid())
+  userId        String
+  contentId     String
+  status        LearnStatus @default(NOT_STARTED)
+  progress      Int      @default(0) // percentage
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content LearnContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, contentId])
+  @@map("learn_progress")
+}
+
+model SocialPost {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  images    String? // JSON array of image URLs
+  type      PostType @default(REGULAR)
+  likes     Int      @default(0)
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  
+  @@map("social_posts")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String?
+  content   String
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      SocialPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  items     WatchlistItem[]
+  
+  @@map("watchlists")
+}
+
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  watchlistId String
+  assetId     String
+  addedAt     DateTime @default(now())
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  @@unique([watchlistId, assetId])
+  @@map("watchlist_items")
+}
+
+model CopiedPortfolio {
+  id          String   @id @default(cuid())
+  userId      String   // user who copied
+  portfolioId String   // original portfolio
+  copiedAt    DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, portfolioId])
+  @@map("copied_portfolios")
+}
+
+model AIInsight {
+  id        String   @id @default(cuid())
+  userId    String?
+  assetId   String?
+  type      InsightType
+  title     String
+  content   String
+  confidence Float?  // 0-1 confidence score
+  metadata  String?  // JSON
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset Asset? @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  @@map("ai_insights")
+}
+
+model PaymentMethod {
+  id        String   @id @default(cuid())
+  userId    String
+  type      PaymentType
+  provider  String
+  details   String   // JSON
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("payment_methods")
+}
+
+// Enums
+enum KYCStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum RiskProfile {
+  CONSERVATIVE
+  MODERATE
+  AGGRESSIVE
+}
+
+enum AssetType {
+  STOCK
+  MUTUAL_FUND
+  ETF
+  GOLD
+  BOND
+  CRYPTO
+  GLOBAL
+  REAL_ESTATE
+}
+
+enum AssetCategory {
+  EQUITY
+  DEBT
+  HYBRID
+  COMMODITY
+  INTERNATIONAL
+  SECTORAL
+  INDEX
+  THEME
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+  SIP
+  STP
+  SWP
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  EXECUTED
+  CANCELLED
+  FAILED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  INVESTMENT
+  DIVIDEND
+  REWARD
+  REFUND
+  FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum KYCDocumentType {
+  PAN_CARD
+  AADHAAR_FRONT
+  AADHAAR_BACK
+  PASSPORT
+  DRIVING_LICENSE
+  VOTER_ID
+  BANK_STATEMENT
+  SELFIE
+}
+
+enum MissionType {
+  INVESTMENT
+  LEARNING
+  SOCIAL
+  STREAK
+  REFERRAL
+  PORTFOLIO
+}
+
+enum MissionStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum LearnType {
+  ARTICLE
+  VIDEO
+  QUIZ
+  COURSE
+  TUTORIAL
+}
+
+enum LearnStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PostType {
+  REGULAR
+  INSIGHT
+  ANALYSIS
+  PORTFOLIO_SHARE
+  ACHIEVEMENT
+  QUESTION
+}
+
+enum InsightType {
+  PORTFOLIO_HEALTH
+  MARKET_TREND
+  RISK_ALERT
+  OPPORTUNITY
+  RECOMMENDATION
+  PERFORMANCE_ANALYSIS
+}
+
+enum PaymentType {
+  UPI
+  NET_BANKING
+  DEBIT_CARD
+  CREDIT_CARD
+  WALLET
+}
+
+// Monetization Models
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  tier      SubscriptionTier
+  planType  PlanType
+  amount    Float
+  currency  String   @default("INR")
+  status    SubscriptionStatus @default(ACTIVE)
+  startDate DateTime @default(now())
+  endDate   DateTime
+  autoRenew Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model Fee {
+  id        String   @id @default(cuid())
+  userId    String
+  type      FeeType
+  amount    Float
+  currency  String   @default("INR")
+  percentage Float?  // For percentage-based fees
+  description String?
+  reference String? // Order ID, Transaction ID, etc.
+  status    FeeStatus @default(PENDING)
+  managedPortfolioId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  managedPortfolio ManagedPortfolio? @relation(fields: [managedPortfolioId], references: [id], onDelete: Cascade)
+  
+  @@map("fees")
+}
+
+model PremiumFeature {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  type        PremiumFeatureType
+  price       Float
+  currency    String   @default("INR")
+  billingCycle BillingCycle @default(MONTHLY)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userFeatures UserPremiumFeature[]
+  
+  @@map("premium_features")
+}
+
+model UserPremiumFeature {
+  id          String   @id @default(cuid())
+  userId      String
+  featureId   String
+  status      PremiumFeatureStatus @default(ACTIVE)
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature     PremiumFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, featureId])
+  @@map("user_premium_features")
+}
+
+model ManagedPortfolio {
+  id          String   @id @default(cuid())
+  userId      String
+  portfolioId String
+  strategy    ManagedPortfolioStrategy
+  feeRate     Float    // Annual fee percentage
+  isActive    Boolean  @default(true)
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolio   Portfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  fees        Fee[]
+  
+  @@unique([userId, portfolioId])
+  @@map("managed_portfolios")
+}
+
+model Partner {
+  id          String   @id @default(cuid())
+  name        String
+  type        PartnerType
+  description String?
+  commissionRate Float   // Commission percentage
+  isActive    Boolean  @default(true)
+  contactInfo String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  commissions Commission[]
+  affiliateLinks AffiliateLink[]
+  
+  @@map("partners")
+}
+
+model Commission {
+  id          String   @id @default(cuid())
+  userId      String?
+  partnerId   String
+  type        CommissionType
+  amount      Float
+  currency    String   @default("INR")
+  percentage  Float?   // Commission rate applied
+  reference   String?  // Order ID, Transaction ID, etc.
+  status      CommissionStatus @default(PENDING)
+  settledAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  
+  @@map("commissions")
+}
+
+model AffiliateLink {
+  id          String   @id @default(cuid())
+  partnerId   String
+  userId      String?  // If created by a user
+  code        String   @unique
+  url         String
+  type        AffiliateType
+  commission  Float    // Commission amount or percentage
+  isActive    Boolean  @default(true)
+  clickCount  Int      @default(0)
+  conversions Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  partner     Partner         @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user        User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clickEvents AffiliateClick[]
+  
+  @@map("affiliate_links")
+}
+
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  linkId      String
+  userId      String?  // User who clicked (if logged in)
+  ipAddress   String?
+  userAgent   String?
+  converted   Boolean  @default(false)
+  commission  Float?   // Commission earned if converted
+  createdAt   DateTime @default(now())
+
+  link        AffiliateLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  user        User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("affiliate_clicks")
+}
+
+model PremiumContent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  type        PremiumContentType
+  content     String   // HTML or JSON
+  price       Float
+  currency    String   @default("INR")
+  instructor  String?
+  duration    Int?     // in minutes
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases   PremiumContentPurchase[]
+  
+  @@map("premium_content")
+}
+
+model PremiumContentPurchase {
+  id          String   @id @default(cuid())
+  userId      String
+  contentId   String
+  amount      Float
+  currency    String   @default("INR")
+  status      PurchaseStatus @default(COMPLETED)
+  purchasedAt DateTime @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     PremiumContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, contentId])
+  @@map("premium_content_purchases")
+}
+
+model Advertisement {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  targetUrl   String
+  type        AdvertisementType
+  position    AdvertisementPosition
+  startDate   DateTime
+  endDate     DateTime
+  budget      Float
+  spent       Float    @default(0)
+  clicks      Int      @default(0)
+  impressions Int     @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("advertisements")
+}
+
+// Monetization Enums
+enum SubscriptionTier {
+  BASIC
+  PREMIUM
+  PROFESSIONAL
+}
+
+enum PlanType {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+enum FeeType {
+  BROKERAGE
+  SPREAD
+  MANAGEMENT
+  SUBSCRIPTION
+  PREMIUM_FEATURE
+  WITHDRAWAL
+  CURRENCY_CONVERSION
+}
+
+enum FeeStatus {
+  PENDING
+  PAID
+  WAIVED
+  REFUNDED
+}
+
+enum PremiumFeatureType {
+  AI_ADVISOR
+  MARKET_PREDICTIONS
+  RISK_ANALYSIS
+  TAX_OPTIMIZATION
+  API_ACCESS
+  ADVANCED_ANALYTICS
+  PRIORITY_SUPPORT
+  EXPERT_SESSIONS
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum PremiumFeatureStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum ManagedPortfolioStrategy {
+  CONSERVATIVE
+  BALANCED
+  AGGRESSIVE
+  CUSTOM
+}
+
+enum PartnerType {
+  FUND_HOUSE
+  PAYMENT_GATEWAY
+  INSURANCE
+  BROKER
+  EDUCATIONAL
+}
+
+enum CommissionType {
+  MUTUAL_FUND_TRAIL
+  ETF_COMMISSION
+  INSURANCE_COMMISSION
+  AFFILIATE_SIGNUP
+  TRANSACTION_FEE
+  AD_REVENUE
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum AffiliateType {
+  DEMAT_ACCOUNT
+  CREDIT_CARD
+  INSURANCE
+  EDUCATIONAL_COURSE
+}
+
+enum PremiumContentType {
+  COURSE
+  WEBINAR
+  RESEARCH_REPORT
+  CERTIFICATION
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum AdvertisementType {
+  FUND_PROMOTION
+  EDUCATIONAL_CONTENT
+  TOOL_SPONSORSHIP
+  BRAND_AWARENESS
+}
+
+enum AdvertisementPosition {
+  HOME_BANNER
+  DASHBOARD_SIDEBAR
+  INVESTMENT_PAGE
+  LEARNING_SECTION
+  COMMUNITY_FEED
+}
