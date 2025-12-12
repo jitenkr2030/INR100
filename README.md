@@ -1,13 +1,3 @@
----
-AIGC:
-    ContentProducer: Minimax Agent AI
-    ContentPropagator: Minimax Agent AI
-    Label: AIGC
-    ProduceID: "00000000000000000000000000000000"
-    PropagateID: "00000000000000000000000000000000"
-    ReservedCode1: 30450221009c3be90c9cc8bf4e8d99880aae2821450a97a4fd117755d13c0c18825ca0cb5b022057275fac634224117bd5db2c583b5d726b9dbc0118e70cbec4207f0ee52a63b2
-    ReservedCode2: 3045022067150efb0b087fd6330d56bf845d26237870f24a7daad91575379c94bfab62fe0221008157ba4b17e22a83b904ad6ab7268ee6237c642ac1653a36d6fb433de1fde3bf
----
 
 # 🚀 INR100.com - India's Micro-Investing Platform
 
